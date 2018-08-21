@@ -192,66 +192,71 @@ const struct HEntry* tree_entry(const struct HTree* root)
 }
 
 
-static int build_symbol_string(const struct HTree* root, uint8_t* string, size_t bits)
+static struct HTree* read_string_and_build_tree(struct HEntry** const table, const void* string, bitpos_t* pos)
+{
+    struct HTree* node = NULL;
+
+    int leaf = read_bit(string, pos);
+    if (leaf == 1)
+    {
+        uint8_t symbol = 0;
+        for (int i = 0; i < 8; ++i)
+        {
+            symbol <<= 1;
+            symbol |= read_bit(string, pos);
+        }
+
+        node = create_node(symbol, 0);
+        table[node->entry.symbol] = &node->entry;
+    }
+    else
+    {
+        node = create_node(0, 0);
+        node->left = read_string_and_build_tree(table, string, pos);
+        node->right = read_string_and_build_tree(table, string, pos);
+    }
+
+    return node;
+}
+
+
+int tree_from_string(struct HTree** tree, struct HEntry** const table, const void* string)
+{
+    struct HTree* root;
+
+    *tree = NULL;
+
+    for (int i = 0; i < 256; ++i)
+    {
+        table[i] = NULL;
+    }
+
+    bitpos_t stream = STREAM_INIT;
+    root = read_string_and_build_tree(table, string, &stream);
+
+    traverse_and_code(root, 0, 0);
+
+    *tree = root;
+    return 0;
+}
+
+
+static void traverse_and_write_string(const struct HTree* root, uint8_t* string, bitpos_t* pos)
 {
     if (root->left == NULL)
     {
-        string[bits / 8] |= 1 << (bits % 8);
-        ++bits;
-
-        for (int i = 0; i < 8; ++i, ++bits)
+        write_bit(string, pos, 1);
+        for (int i = 0; i < 8; ++i)
         {
-            string[bits / 8] |= (!!(root->entry.symbol & (1 << i))) << (bits % 8);
+            write_bit(string, pos, root->entry.symbol & (1 << (8 - 1 - i)));
         }
     }
     else
     {
-        bits = build_symbol_string(root->left, string, bits + 1);
-        bits = build_symbol_string(root->right, string, bits + 1);
+        write_bit(string, pos, 0);
+        traverse_and_write_string(root->left, string, pos);
+        traverse_and_write_string(root->right, string, pos);
     }
-
-    return bits;
-}
-
-
-static struct HTree* build_node(const void* string, bitpos_t* pos)
-{
-    uint8_t symbol = 0;
-    for (int i = 0; i < 8; ++i)
-    {
-        symbol <<= 1;
-        symbol |= read_bit(string, pos);
-    }
-
-    struct HTree* node = create_node(symbol, 0);
-
-}
-
-
-static void build_tree(const struct HTree* root, const void* string, bitpos_t* pos)
-{
-
-}
-
-
-int tree_from_string(struct HTree** tree, struct HEntry** const, const void* string)
-{
-    struct HTree* root = NULL;
-
-    *tree = NULL;
-    
-    bitpos_t pos = STREAM_INIT;
-    while (1)
-    {
-        int bit = read_bit(string, &pos);
-        if (bit)
-        {
-
-        }
-    }
-
-    *tree = root;
-    return 0;
 }
 
 
@@ -272,7 +277,8 @@ int tree_string(void** string, size_t* size, const struct HTree* root)
         return errno;
     }
 
-    build_symbol_string(root, t, 0);
+    bitpos_t stream = STREAM_INIT;
+    traverse_and_write_string(root, t, &stream);
 
     *string = (void*) t;
     *size = bytes;
