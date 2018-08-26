@@ -8,6 +8,7 @@
 #include "entry.h"
 #include "coding.h"
 #include "bitstream.h"
+#include <sys/stat.h>
 
 
 static void print_entry(const struct HEntry* entry)
@@ -80,11 +81,6 @@ static size_t count_compressed_size(struct HEntry** const table, const struct HT
 
 static void give_usage(const char* name)
 {
-#if defined( COMPRESS )
-    fprintf(stderr, "Usage: %s [-tT] [-d <filename>] [-r <filename>] <output> [<input>]\n", name);
-#elif defined (DECOMPRESS)
-    fprintf(stderr, "Usage: %s [-tT] [-d <filename>] [-r <filename>] <input> [<output>]\n", name);
-#endif
 }
 
 
@@ -99,23 +95,18 @@ int main(int argc, char** argv)
     static struct option opts[] = 
     {
         { .name = "help", .has_arg = no_argument, .flag = NULL, .val = 'h' },
-        { .name = "table", .has_arg = no_argument, .flag = NULL, .val = 't' },
-        { .name = "show-table", .has_arg = no_argument, .flag = NULL, .val = 't' },
-        { .name = "no-table", .has_arg = no_argument, .flag = NULL, .val = 'T' },
-        { .name = "notable", .has_arg = no_argument, .flag = NULL, .val = 'T' },
-        { .name = "dump-table", .has_arg = required_argument, .flag = NULL, 'd' },
-        { .name = "read-table", .has_arg = required_argument, .flag = NULL, 'r' },
+        { .name = "extract", .has_arg = no_argument, .flag = NULL, .val = 'x' },
+        { .name = "list", .has_arg = no_argument, .flag = NULL, .val = 'l' },
         { .name = NULL, .has_arg = 0, .flag = NULL, .val = 0 }
     };
 
     int opt;
     int idx;
-    bool show_table = false;
-    bool no_table = false;
-    const char* table_out_fname = NULL;
-    const char* table_in_fname = NULL;
+    bool extract = false;
+    bool show_tables = false;
+    bool list_files = true;
 
-    while ((opt = getopt_long(argc, argv, ":htTd:r:", opts, &idx)) != -1)
+    while ((opt = getopt_long(argc, argv, ":hxlt", opts, &idx)) != -1)
     {
         switch (opt)
         {
@@ -131,37 +122,32 @@ int main(int argc, char** argv)
                 give_usage(argv[0]);
                 return 1;
 
+            case 'x':
+                extract = true;
+                break;
+
+            case 'l':
+                list_files = true;
+                break;
+
             case 't':
-                show_table = true;
+                show_tables = true;
                 break;
 
-            case 'T':
-                no_table = true;
-                break;
-
-            case 'd':
-                table_out_fname = optarg;
-                break;
-
-            case 'r':
-                table_in_fname = optarg;
         }
     }
 
     if (optind == argc)
     {
-#if defined( COMPRESS )
-        fprintf(stderr, "Missing output filename!\n");
-#elif defined( DECOMPRESS )
-        fprintf(stderr, "Missing input filename!\n");
-#endif
+        fprintf(stderr, "Missing arguments!\n");
         give_usage(argv[0]);
         return 1;
     }
 
+    // Check all files
     for (int i = optind; i < argc; ++i)
     {
-        fprintf(stderr, "%s\n", argv[i]); 
+        
     }
 
     return 0;

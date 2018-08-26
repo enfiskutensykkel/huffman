@@ -1,24 +1,18 @@
 CC := gcc
-DEFS :=
 CFLAGS := -std=gnu99 -Wall -Wextra -pedantic -Iinclude/
 OBJS := $(patsubst src/%.c,build/%.o,$(wildcard src/*.c))
 
-.PHONY: compress decompress all clean distclean
+.PHONY: huff all clean distclean
 
-all: compress decompress
+all: huff
 
 clean:
-	-$(RM) $(OBJS) $(COBJS) $(DOBJS)
+	-$(RM) $(OBJS) 
 
 distclean: clean
-	-$(RM) compress decompress
+	-$(RM) huff
 
-compress: DEFS += -DCOMPRESS
-compress: $(OBJS)
-	$(CC) -o $@ $^
-
-decompress: DEFS += -DDECOMPRESS
-decompress: $(OBJS)
+huff: $(OBJS)
 	$(CC) -o $@ $^
 
 build/%.o: src/%.c include/bitstream.h

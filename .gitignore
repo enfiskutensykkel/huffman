@@ -1,5 +1,4 @@
 .*.swp
 *~
 *.o
-compress
-decompress
+huff
