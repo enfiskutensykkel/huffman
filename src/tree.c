@@ -99,7 +99,7 @@ static uint8_t traverse_and_code(struct HTree* root, uint8_t depth, uint32_t cod
     {
         root->entry.code = code;
         root->entry.depth = depth;
-        return depth;
+        return 1;
     }
     else
     {
@@ -107,22 +107,7 @@ static uint8_t traverse_and_code(struct HTree* root, uint8_t depth, uint32_t cod
         uint8_t y = traverse_and_code(root->right, depth + 1, code | (1 << depth));
         //uint8_t x = traverse_and_code(root->left, depth + 1, code << 1);
         //uint8_t y = traverse_and_code(root->right, depth + 1, (code << 1) | 1);
-        return x >= y ? x : y;
-    }
-}
-
-
-static void traverse_and_count(const struct HTree* root, int* nodes, int* leaves)
-{
-    if (root->left == NULL)
-    {
-        *leaves += 1;
-    }
-    else
-    {
-        *nodes += 1;
-        traverse_and_count(root->left, nodes, leaves);
-        traverse_and_count(root->right, nodes, leaves);
+        return x + y + 1;
     }
 }
 
@@ -174,7 +159,7 @@ int tree_from_freq(struct HTree** root, struct HEntry** const table, const size_
     }
 
     struct HTree* super = remove_first(&unassigned);
-    traverse_and_code(super, 0, 0);
+    super->entry.depth = traverse_and_code(super, 0, 0);
 
     *root = super;
     return 0;
@@ -207,21 +192,42 @@ static struct HTree* read_string_and_build_tree(struct HEntry** const table, con
         }
 
         node = create_node(symbol, 0);
+        if (node == NULL)
+        {
+            return NULL;
+        }
         table[node->entry.symbol] = &node->entry;
     }
     else
     {
         node = create_node(0, 0);
+        if (node == NULL)
+        {
+            return NULL;
+        }
+
         node->left = read_string_and_build_tree(table, string, pos);
+        if (node->left == NULL)
+        {
+            tree_clear(node);
+            node = NULL;
+        }
+        
         node->right = read_string_and_build_tree(table, string, pos);
+        if (node->right == NULL)
+        {
+            tree_clear(node);
+            node = NULL;
+        }
     }
 
     return node;
 }
 
 
-int tree_from_string(struct HTree** tree, struct HEntry** const table, const void* string)
+int tree_from_string(struct HTree** tree, struct HEntry** const table, const void* string, bitpos_t* stream)
 {
+    bitpos_t default_stream = STREAM_INIT;
     struct HTree* root;
 
     *tree = NULL;
@@ -231,18 +237,28 @@ int tree_from_string(struct HTree** tree, struct HEntry** const table, const voi
         table[i] = NULL;
     }
 
-    bitpos_t stream = STREAM_INIT;
-    root = read_string_and_build_tree(table, string, &stream);
+    if (stream == NULL)
+    {
+        stream = &default_stream;
+    }
 
-    traverse_and_code(root, 0, 0);
+    root = read_string_and_build_tree(table, string, stream);
+    if (root == NULL)
+    {
+        return errno;
+    }
+
+    root->entry.depth = traverse_and_code(root, 0, 0);
 
     *tree = root;
     return 0;
 }
 
 
-static void traverse_and_write_string(const struct HTree* root, uint8_t* string, bitpos_t* pos)
+static size_t traverse_and_write_string(const struct HTree* root, void* string, bitpos_t* pos)
 {
+    size_t bits = 1;
+
     if (root->left == NULL)
     {
         write_bit(string, pos, 1);
@@ -250,38 +266,27 @@ static void traverse_and_write_string(const struct HTree* root, uint8_t* string,
         {
             write_bit(string, pos, root->entry.symbol & (1 << (8 - 1 - i)));
         }
+        bits += 8;
     }
     else
     {
         write_bit(string, pos, 0);
-        traverse_and_write_string(root->left, string, pos);
-        traverse_and_write_string(root->right, string, pos);
+        bits += traverse_and_write_string(root->left, string, pos);
+        bits += traverse_and_write_string(root->right, string, pos);
     }
+
+    return bits;
 }
 
 
-int tree_string(void** string, size_t* size, const struct HTree* root)
+size_t tree_string(const struct HTree* root, void* string, bitpos_t* pos)
 {
-    *string = NULL;
-    *size = 0;
+    return traverse_and_write_string(root, string, pos);
+}
 
-    int nonleaves = 0;
-    int leaves = 0;
-    traverse_and_count(root, &nonleaves, &leaves);
-    uint32_t bytes = (nonleaves * 1 + leaves * 9) / 8 + !((nonleaves * 1 + leaves * 9) % 8);
-    
-    uint8_t* t = malloc(bytes);
-    memset(t, 0, bytes);
-    if (t == NULL)
-    {
-        return errno;
-    }
 
-    bitpos_t stream = STREAM_INIT;
-    traverse_and_write_string(root, t, &stream);
-
-    *string = (void*) t;
-    *size = bytes;
-    return 0;
+size_t tree_size(const struct HTree* root)
+{
+    return root->entry.depth;
 }
 

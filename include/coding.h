@@ -10,18 +10,17 @@ struct HTree;
 struct BitPosition;
 
 
+int compress(struct HEntry** const table, 
+             const void* src,
+             size_t length,
+             void* dst, 
+             struct BitPosition* dstpos);
 
-int encode(struct HEntry** const table, 
-           const void* src,
-           size_t length,
-           void* dst, 
-           struct BitPosition* dstpos);
 
-
-size_t decode(const struct HTree* root,
-              const void* src, 
-              struct BitPosition* srcpos,
-              const struct BitPosition* srcend,
-              void* dst);
+size_t decompress(const struct HTree* root,
+                  const void* src, 
+                  struct BitPosition* srcpos,
+                  const struct BitPosition* srcend,
+                  void* dst);
 
 #endif

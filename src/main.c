@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
+#include <getopt.h>
 #include "tree.h"
 #include "entry.h"
 #include "coding.h"
@@ -57,6 +59,35 @@ static void count_byte_frequency(size_t* frequency, const void* data, size_t len
 }
 
 
+static size_t count_compressed_size(struct HEntry** const table, const struct HTree* root)
+{
+    size_t bits = 0;
+
+    for (int i = 0; i < 256; ++i)
+    {
+        if (table[i] != NULL)
+        {
+            bits += table[i]->freq * table[i]->depth;
+            bits += 8;
+        }
+    }
+
+    bits += tree_size(root);
+
+    return bits / 8 + bits % 8 != 0;
+}
+
+
+static void give_usage(const char* name)
+{
+#if defined( COMPRESS )
+    fprintf(stderr, "Usage: %s [-tT] [-d <filename>] [-r <filename>] <output> [<input>]\n", name);
+#elif defined (DECOMPRESS)
+    fprintf(stderr, "Usage: %s [-tT] [-d <filename>] [-r <filename>] <input> [<output>]\n", name);
+#endif
+}
+
+
 int main(int argc, char** argv)
 {
     size_t frequency[256];
@@ -65,48 +96,73 @@ int main(int argc, char** argv)
         frequency[i] = 0;
     }
 
-    //const char* str = "the zen of css design";
-    const char* str = "SIR NORMAN BETTISON, ACCUSED OF BLAMING LIVERPOOL FANS FOR THE 1989 DISASTER, WILL NOT BE PROSECUTED.";
-    //const char* str = "heello";
-    size_t n = strlen(str);
-    struct HEntry* table[256];
-    struct HTree* tree;
+    static struct option opts[] = 
+    {
+        { .name = "help", .has_arg = no_argument, .flag = NULL, .val = 'h' },
+        { .name = "table", .has_arg = no_argument, .flag = NULL, .val = 't' },
+        { .name = "show-table", .has_arg = no_argument, .flag = NULL, .val = 't' },
+        { .name = "no-table", .has_arg = no_argument, .flag = NULL, .val = 'T' },
+        { .name = "notable", .has_arg = no_argument, .flag = NULL, .val = 'T' },
+        { .name = "dump-table", .has_arg = required_argument, .flag = NULL, 'd' },
+        { .name = "read-table", .has_arg = required_argument, .flag = NULL, 'r' },
+        { .name = NULL, .has_arg = 0, .flag = NULL, .val = 0 }
+    };
 
-    count_byte_frequency(frequency, str, n);
+    int opt;
+    int idx;
+    bool show_table = false;
+    bool no_table = false;
+    const char* table_out_fname = NULL;
+    const char* table_in_fname = NULL;
 
-    tree_from_freq(&tree, table, frequency);
+    while ((opt = getopt_long(argc, argv, ":htTd:r:", opts, &idx)) != -1)
+    {
+        switch (opt)
+        {
+            case '?':
+                fprintf(stderr, "Option `%s' is unknown\n", argv[optind - 1]);
+                return '?';
 
-    void* symbols;
-    size_t size;
-    tree_string(&symbols, &size, tree);
+            case ':':
+                fprintf(stderr, "Missing argument for option `%s'\n", argv[optind - 1]);
+                return ':';
 
-    bitpos_t bytestream = STREAM_INIT;
-    char buff[n];
-    encode(table, str, n, &buff, &bytestream);
+            case 'h':
+                give_usage(argv[0]);
+                return 1;
 
+            case 't':
+                show_table = true;
+                break;
 
-    struct HEntry* table2[256];
-    struct HTree* tree2;
-    tree_from_string(&tree2, table2, symbols);
+            case 'T':
+                no_table = true;
+                break;
 
-    fprintf(stderr, "%s\n\n", str);
+            case 'd':
+                table_out_fname = optarg;
+                break;
 
-//    FILE* fp = fopen("file.dat", "w");
-//    fwrite(buff, 1, bytestream.bytes + bytestream.carry != 0, fp);
-//    fclose(fp);
-//    
-//    char debuff[n + 1];
-//
-//    n = decode(tree, buff, NULL, &bytestream, debuff);
-//    debuff[n] = 0;
-//
-//    fprintf(stderr, "%s\n", debuff);
+            case 'r':
+                table_in_fname = optarg;
+        }
+    }
 
-    print_table(table);
-    fprintf(stderr, "\n");
-    print_table(table2);
+    if (optind == argc)
+    {
+#if defined( COMPRESS )
+        fprintf(stderr, "Missing output filename!\n");
+#elif defined( DECOMPRESS )
+        fprintf(stderr, "Missing input filename!\n");
+#endif
+        give_usage(argv[0]);
+        return 1;
+    }
 
-    tree_clear(tree);
-    free(symbols);
+    for (int i = optind; i < argc; ++i)
+    {
+        fprintf(stderr, "%s\n", argv[i]); 
+    }
+
     return 0;
 }

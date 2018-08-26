@@ -9,7 +9,7 @@
 #include <limits.h>
 
 
-int encode(struct HEntry** const table, const void* src, size_t length, void* dst, bitpos_t* pos)
+int compress(struct HEntry** const table, const void* src, size_t length, void* dst, bitpos_t* pos)
 {
     const unsigned char* in = (const unsigned char*) src;
     const unsigned char* end = in + length;
@@ -32,7 +32,7 @@ int encode(struct HEntry** const table, const void* src, size_t length, void* ds
 }
 
 
-size_t decode(const struct HTree* root, const void* src, bitpos_t* pos, const bitpos_t* end, void* dst)
+size_t decompress(const struct HTree* root, const void* src, bitpos_t* pos, const bitpos_t* end, void* dst)
 {
     bitpos_t defstream = STREAM_INIT;
     unsigned char* out = (unsigned char*) dst;
